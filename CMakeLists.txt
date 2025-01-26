@@ -151,4 +151,5 @@ macro(CREATE_VULKAN_EXECUTABLE target)
     install(DIRECTORY ${PROJECT_BINARY_DIR}/compiledshaders/${target} DESTINATION bin/${target}/build/compiledshaders)
 endmacro()
 
-CREATE_VULKAN_EXECUTABLE(BasicVulkan)
+CREATE_VULKAN_EXECUTABLE(Assign01)
+

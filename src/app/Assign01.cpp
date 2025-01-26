@@ -6,8 +6,8 @@ int main(int argc, char **argv) {
     cout << "BEGIN FORGING!!!" << endl;
 
     // Set name
-    string appName = "BasicVulkan";
-    string windowTitle = "Basic Vulkan Example";
+    string appName = "Assign01";
+    string windowTitle = "Assign01: paviad";
     int windowWidth = 800;
     int windowHeight = 600;
 
