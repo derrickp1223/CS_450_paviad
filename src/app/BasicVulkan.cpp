@@ -16,7 +16,10 @@ int main(int argc, char **argv) {
 
     // Setup up Vulkan via vk-bootstrap
     VulkanInitData vkInitData;
-    initVulkanBootstrap(appName, window, vkInitData);
+    if(!initVulkanBootstrap(appName, window, vkInitData)) {
+        cerr << "Vulkan Init Failed.  Cannot proceed." << endl;
+        return 1;
+    }
 
     // Setup basic forward rendering process
     string vertSPVFilename = "build/compiledshaders/" + appName + "/shader.vert.spv";                                                    
@@ -92,3 +95,4 @@ int main(int argc, char **argv) {
     cout << "FORGING DONE!!!" << endl;
     return 0;
 }
+

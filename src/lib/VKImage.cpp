@@ -44,8 +44,8 @@ VulkanImage createVulkanImage(  VulkanInitData &vkInitData, int width, int heigh
     vkInitData.device.bindImageMemory(image, memory, 0);
 
     // Move into struct (rather than copy)
-    vkImage.image = move(image);
-    vkImage.memory = move(memory);
+    vkImage.image = std::move(image);
+    vkImage.memory = std::move(memory);
 
     ///////////////////////////////////////////////////////////////////////////
     // IMAGEVIEW

@@ -53,6 +53,19 @@ Download and install the **Vulkan SDK** for your platform:
 * ***For Windows and MacOS:*** Download the installer [here](https://vulkan.lunarg.com/sdk/home) and run it.
 * ***For Linux:*** Follow instructions found [here](https://vulkan.lunarg.com/doc/sdk/latest/linux/getting_started.html).
 
+***For MacOS specifically:*** After running the installer:
+1. Open a terminal
+2. cd to ```/Users/\<username\>/VulkanSDK/\<version number\>```
+3. If python is not installed: ```brew install python```
+4. Either:
+```
+sudo ./install_vulkan.py
+```
+or
+```
+sudo python3 install_vulkan.py
+```
+
 ### Other Libraries
 The following libraries will be automatically fetched into your project and compiled with your code:
 - GLFW

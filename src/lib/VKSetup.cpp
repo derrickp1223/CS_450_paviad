@@ -92,7 +92,7 @@ bool initVulkanBootstrap(string appName, GLFWwindow *window, VulkanInitData &vkI
     vkb::PhysicalDeviceSelector selector { vkbInstance };
     auto physRet = selector.set_surface(surface)
                         .set_minimum_version(1,1) // require at least a Vulkan 1.1 device
-                        .require_dedicated_transfer_queue()
+                        //.require_dedicated_transfer_queue()
                         .set_required_features(requiredDeviceFeatures)
                         .select();
 
@@ -184,7 +184,7 @@ bool createVulkanSwapchain(VulkanInitData &vkInitData) {
 
     // Convert to our data structure so we use VulkanHpp consistently
     vkInitData.swapchain.chain = vk::SwapchainKHR { vkSwapchain.swapchain };
-    vkInitData.swapchain.format = vk::Format { vkSwapchain.image_format };
+    vkInitData.swapchain.format = vk::Format(vkSwapchain.image_format);
     vkInitData.swapchain.extent = vk::Extent2D { vkSwapchain.extent };
     
     vector<VkImageView> vkViews = vkSwapchain.get_image_views().value();
