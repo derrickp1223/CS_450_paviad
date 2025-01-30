@@ -429,7 +429,7 @@ void VulkanRenderEngine::recordCommandBuffer(   void *userData,
 
     // Begin render pass
     array<vk::ClearValue, 2> clearValues {};
-    clearValues[0].color = vk::ClearColorValue(0.0f, 0.0f, 0.7f, 1.0f);
+    clearValues[0].color = vk::ClearColorValue(1.0f, 1.0f, 0.7f, 1.0f);
     clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0.0f);
     
     commandBuffer.beginRenderPass(vk::RenderPassBeginInfo(
