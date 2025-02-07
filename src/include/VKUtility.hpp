@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include <atomic>
 #include <vulkan/vulkan.hpp>
 
 #include <assimp/Importer.hpp>

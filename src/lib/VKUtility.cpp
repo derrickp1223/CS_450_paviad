@@ -25,7 +25,7 @@ vector<char> readBinaryFile(const string& filename) {
 ///////////////////////////////////////////////////////////////////////////////
 
 chrono::steady_clock::time_point getTime() {
-    return chrono::high_resolution_clock::now();
+    return chrono::steady_clock::now();
 }
 
 float getElapsedSeconds(chrono::steady_clock::time_point start, 
