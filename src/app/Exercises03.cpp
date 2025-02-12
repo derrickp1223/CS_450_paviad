@@ -4,6 +4,7 @@
 #include "VkBootstrap.h"
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#include "VKUtility.hpp"
 using namespace std;
 
 int main(int argc, char **argv) {
@@ -62,7 +63,63 @@ int main(int argc, char **argv) {
     cout << "Graphics queue: " << graphIndex << endl;
     cout << "Present queue: " << presentIndex << endl;
 
+    vkb::SwapchainBuilder swapBuilder { vkbDevice };
+    VkSurfaceFormatKHR surfaceFormat;
+    surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+    surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
+    auto swapRet = swapBuilder
+        .set_desired_format(surfaceFormat)
+        .build();
+    vkb::Swapchain vkbSwapchain = swapRet.value();
+
+    vk::SwapchainKHR swapchain
+        = vk::SwapchainKHR { vkbSwapchain.swapchain };
+    vk::Format swapformat { vkbSwapchain.image_format };
+    vk::Extent2D swapextent { vkbSwapchain.extent };
+    vector<VkImageView> oldViews
+        = vkbSwapchain.get_image_views().value();
+    vector<vk::ImageView> swapviews;
+    for(int i = 0; i < oldViews.size(); i++) {
+        swapviews.push_back(
+            vk::ImageView { oldViews.at(i)});
+    }
+
+    vector<vk::AttachmentDescription> attachDesc;
+    attachDesc.push_back(vk::AttachmentDescription(
+        {},
+        swapformat,
+        vk::SampleCountFlagBits::e1,
+        vk::AttachmentLoadOp::eClear,
+        vk::AttachmentStoreOp::eStore,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::ePresentSrcKHR
+    ));
+
+    vk::AttachmentReference colorAttachRef(
+        0, vk::ImageLayout::eColorAttachmentOptimal
+    );
+
+    vk::SubpassDescription subpassDesc(
+        vk::SubpassDescriptionFlags(),
+        vk::PipelineBindPoint::eGraphics,
+        {}, colorAttachRef, {}, {}
+    );
+
+    vk::RenderPass pass
+        = device.createRenderPass(
+            vk::RenderPassCreateInfo(
+                {}, attachDesc, subpassDesc
+            )
+        );
+
+    auto vertSrc = readBinaryFile(
+        "build/compiledshaders/ProfExercises03/shader.vert.spv");
+    auto fragSrc = readBinaryFile(
+        "build/compiledshaders/ProfExercises03/shader.frag.spv");
+        
     // CREATION TODO
 
     while(!glfwWindowShouldClose(window)) {
@@ -72,6 +129,12 @@ int main(int argc, char **argv) {
     }
 
     // CLEANUP TODO
+    device.destroyRenderPass(pass);
+    for(int i = 0; i < swapviews.size(); i++) {
+        device.destroyImageView(swapviews.at(i));
+    }
+    swapviews.clear();
+    device.destroySwapchainKHR(swapchain);
     device.destroy();
     instance.destroySurfaceKHR(surface);
     glfwDestroyWindow(window);
