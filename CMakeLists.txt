@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.24) 
 project(CS_450_Assignments)
-set(CMAKE_INSTALL_PREFIX .)
 
-# Comment out this line if it creates problems
-set(CMAKE_PREFIX_PATH "/Users/dp/VulkanSDK/1.4.304.0")
+set(CMAKE_INSTALL_PREFIX .)
 
 #####################################
 # Require C++17
@@ -24,73 +22,112 @@ include(FetchContent)
 
 find_package(Vulkan REQUIRED)
 
+find_package(Threads REQUIRED)
+
 #####################################
 # GLFW
 #####################################
 
-FetchContent_Declare(
-    glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw
-    GIT_TAG 3.4   
-    GIT_SHALLOW 1
-)
-FetchContent_MakeAvailable(glfw)
+find_package(glfw3 3.4 QUIET)
+
+if(NOT glfw3_FOUND)
+    message("GLFW not installed...downloading from source...")
+
+    FetchContent_Declare(
+        glfw3
+        GIT_REPOSITORY https://github.com/glfw/glfw
+        GIT_TAG 3.4   
+        GIT_SHALLOW 1
+    )
+    FetchContent_MakeAvailable(glfw3)
+    set(glfw3_VERSION "3.4")
+else()
+    message("GLFW already installed on system...")
+endif()
+
+message("GLFW version: ${glfw3_VERSION}")
 
 #####################################
 # GLM
 #####################################
 
-FetchContent_Declare(
-    glm
-    GIT_REPOSITORY https://github.com/g-truc/glm
-    GIT_TAG 1.0.1  
-    GIT_SHALLOW 1
-)
+find_package(glm 1.0.1 QUIET)
 
-FetchContent_MakeAvailable(glm)
+if(NOT glm_FOUND)
+    message("GLM not installed...downloading from source...")
+
+    FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm
+        GIT_TAG 1.0.1  
+        GIT_SHALLOW 1
+    )    
+    FetchContent_MakeAvailable(glm)
+    set(glfw3_VERSION "1.0.1")
+else()
+    message("GLM already installed on system...")
+endif()
+
+message("GLM version: ${glm_VERSION}")
 
 #####################################
 # Assimp
 #####################################
 
-set(CMAKE_POLICY_DEFAULT_CMP0175 OLD)
+find_package(assimp 5.4.3 QUIET)
 
-FetchContent_Declare(
-    Assimp
-    GIT_REPOSITORY https://github.com/assimp/assimp
-    GIT_TAG v5.4.3
-    GIT_SHALLOW 1
-)
+if(NOT assimp_FOUND)
+    message("assimp not installed...downloading from source...")
+    set(CMAKE_POLICY_DEFAULT_CMP0175 OLD)
 
-set("ASSIMP_INSTALL_PDB" OFF CACHE BOOL "" FORCE)
-set("BUILD_SHARED_LIBS" OFF CACHE BOOL "" FORCE)
-set("ASSIMP_BUILD_TESTS" OFF CACHE BOOL "" FORCE)
-set("ASSIMP_BUILD_SAMPLES" OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        assimp
+        GIT_REPOSITORY https://github.com/assimp/assimp
+        GIT_TAG v5.4.3
+        GIT_SHALLOW 1
+    )
 
-FetchContent_MakeAvailable(Assimp)
+    set("ASSIMP_INSTALL_PDB" OFF CACHE BOOL "" FORCE)
+    set("BUILD_SHARED_LIBS" OFF CACHE BOOL "" FORCE)
+    set("ASSIMP_BUILD_TESTS" OFF CACHE BOOL "" FORCE)
+    set("ASSIMP_BUILD_SAMPLES" OFF CACHE BOOL "" FORCE)
+
+    FetchContent_MakeAvailable(assimp)
+    set(assimp_VERSION "5.4.3")
+else()
+    message("assimp already installed on system...")
+endif()
+
+message("assimp version: ${assimp_VERSION}")
 
 #####################################
 # VK-Bootstrap
 #####################################
 
-FetchContent_Declare(
-    fetch_vk_bootstrap
-    GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap
-    GIT_TAG v1.3.302
-    GIT_SHALLOW 1
-)
+find_package(vk-bootstrap QUIET)
 
-set("VK_BOOTSTRAP_VULKAN_HEADER_DIR" ${Vulkan_INCLUDE_DIRS} CACHE FILEPATH "" FORCE)
+if(NOT vk-bootstrap_FOUND)
+    message("vk-bootstrap not installed...downloading from source...")
 
-FetchContent_MakeAvailable(fetch_vk_bootstrap)
+    FetchContent_Declare(
+        vk-bootstrap
+        GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap
+        GIT_TAG v1.3.302
+        GIT_SHALLOW 1
+    )
+
+    set("VK_BOOTSTRAP_VULKAN_HEADER_DIR" ${Vulkan_INCLUDE_DIRS} CACHE FILEPATH "" FORCE)
+
+    FetchContent_MakeAvailable(vk-bootstrap)    
+else()
+    message("vk-bootstrap already installed on system...")
+endif()
 
 #####################################
 # Get general sources
 #####################################
 
 include_directories("src/include" Vulkan::Headers)
-
-message(${Vulkan_INCLUDE_DIRS})
 
 file(GLOB GENERAL_SOURCES    
     "src/lib/*.cpp"  
@@ -142,10 +179,11 @@ endmacro()
 
 set(ALL_LIBRARIES 
     Vulkan::Vulkan    
-    glfw   
+    glfw
     glm::glm  
     assimp::assimp
-    vk-bootstrap::vk-bootstrap)
+    vk-bootstrap::vk-bootstrap
+    Threads::Threads)
 
 macro(CREATE_VULKAN_EXECUTABLE target)
     add_executable(${target} ${GENERAL_SOURCES} "./src/app/${target}.cpp")
