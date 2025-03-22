@@ -139,15 +139,16 @@ int main(int argc, char **argv) {
         ▪ Loop through all of your VulkanMesh objects and call cleanupVulkanMesh()
         ▪ Clear out your list of VulkanMesh objects in your sceneData
     */
-   
-    for (int i = 0; i < sceneData.scene->mNumMeshes; ++i) { // TODOOOO
-        Mesh<Vertex> mesh;        
+   for (int i = 0; i < sceneData.scene->mNumMeshes; ++i) {
+    Mesh<Vertex> mesh;
+    static_cast<Assign02RenderEngine*>(renderEngine)->
         extractMeshData(sceneData.scene->mMeshes[i], mesh);
-        VulkanMesh vulkanMesh = createVulkanMesh(mesh);
+    VulkanMesh vulkanMesh = 
+        createVulkanMesh(vkInitData, renderEngine->getCommandPool(), mesh);
         sceneData.allMeshes.push_back(vulkanMesh);
-    }
+}
 
-    VulkanMesh vulkanMesh = createVulkanMesh(mesh);
+
     
     // Create very simple quad on host
     /*Mesh<SimpleVertex> hostMesh = {
@@ -181,7 +182,7 @@ int main(int argc, char **argv) {
         glfwPollEvents();  
 
         // Draw frame
-        renderEngine->drawFrame(&allMeshes);  
+        renderEngine->drawFrame(&sceneData);
 
         // Increment frame count
         framesRendered++;
@@ -205,7 +206,12 @@ int main(int argc, char **argv) {
     vkInitData.device.waitIdle();
     
     // Cleanup  
-    cleanupVulkanMesh(vkInitData, mesh);
+    // cleanupVulkanMesh(vkInitData, mesh);
+    for (auto &mesh : sceneData.allMeshes) {
+        cleanupVulkanMesh(vkInitData, mesh);
+    }
+    sceneData.allMeshes.clear();
+
     delete renderEngine;
     cleanupVulkanBootstrap(vkInitData);
     cleanupGLFWWindow(window);
