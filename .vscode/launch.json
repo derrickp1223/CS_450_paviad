@@ -6,7 +6,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${command:cmake.launchTargetPath}",
-            "args": [ "./sampleModels/bunnyteatime.glb" ],
+            "args": [ "./sampleModels/teapot.obj" ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
