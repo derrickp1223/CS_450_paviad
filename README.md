@@ -67,7 +67,7 @@ sudo python3 install_vulkan.py
 ```
 
 ### Other Libraries
-The following libraries will be automatically fetched into your project and compiled with your code:
+If not already installed, the following libraries will be automatically fetched into your project and compiled with your code:
 - GLFW
 - GLM
 - Assimp
@@ -76,4 +76,5 @@ The following libraries will be automatically fetched into your project and comp
 ***For Linux:*** Install the following:
 ```
 sudo apt install libwayland-dev libxkbcommon-dev xorg-dev gdb
+sudo apt install libglfw3 libglfw3-dev libglm-dev libassimp5 libassimp-dev 
 ```
