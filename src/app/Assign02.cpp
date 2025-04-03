@@ -34,9 +34,47 @@ class Assign02RenderEngine : public VulkanRenderEngine {
         virtual void recordCommandBuffer( void *userData, vk::CommandBuffer &commandBuffer, 
                                           unsigned int frameIndex) override {
             SceneData *sceneData = static_cast<SceneData*>(userData);
+
+            // Begin commands
+            commandBuffer.begin(vk::CommandBufferBeginInfo());
+
+            // Get the extents of the buffers (since we'll use it a few times)
+            vk::Extent2D extent = vkInitData.swapchain.extent;
+
+            // Begin render pass
+            array<vk::ClearValue, 2> clearValues {};
+            clearValues[0].color = vk::ClearColorValue(1.0f, 1.0f, 0.7f, 1.0f);
+            clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0.0f);
+            
+            commandBuffer.beginRenderPass(vk::RenderPassBeginInfo(
+                this->renderPass, 
+                this->framebuffers[frameIndex], 
+                { {0,0}, extent },
+                clearValues),
+                vk::SubpassContents::eInline);
+            
+            // Bind pipeline
+            commandBuffer.bindPipeline(
+                vk::PipelineBindPoint::eGraphics, 
+                this->pipelineData.graphicsPipeline);
+
+            // Set up viewport and scissors
+            vk::Viewport viewports[] = {{0, 0, (float)extent.width, (float)extent.height, 0.0f, 1.0f}};
+            commandBuffer.setViewport(0, viewports);
+            
+            vk::Rect2D scissors[] = {{{0,0}, extent}};
+            commandBuffer.setScissor(0, scissors);
+            
+            // Draw meshes
             for(auto &mesh : sceneData->allMeshes) {
                 recordDrawVulkanMesh(commandBuffer, mesh);
             }
+            
+            // Stop render pass
+            commandBuffer.endRenderPass();
+            
+            // End command buffer
+            commandBuffer.end();
         };
 
         void extractMeshData(aiMesh *mesh, Mesh<Vertex> &m) {
