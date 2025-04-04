@@ -5,8 +5,20 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "MeshData.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/transform.hpp"
+#include "glm/gtx/string_cast.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include "VKUtility.hpp"
+
 
 struct Vertex {
+    glm::vec3 pos;
+    glm::vec4 color;
+};
+
+struct UPushVertex {
     glm::vec3 pos;
     glm::vec4 color;
 };
@@ -14,9 +26,20 @@ struct Vertex {
 struct SceneData {
     vector<VulkanMesh> allMeshes;
     const aiScene *scene = nullptr;
+    float rotAngle = 0.0f;
 };
 
 SceneData sceneData;
+
+glm::mat4 makeRotateZ(float rotAngle, glm::vec3 offset) {
+    float radAngle = glm::radians(rotAngle);
+
+    glm::mat4 translate1 = glm::translate(-offset);
+    glm::mat4 rotate = glm::rotate(radAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+    glm::mat translate2 = glm::translate(offset);
+    
+    return translate2 * rotate * translate1;
+}
 
 class Assign03RenderEngine : public VulkanRenderEngine {
     public:
@@ -30,6 +53,59 @@ class Assign03RenderEngine : public VulkanRenderEngine {
             };
 
         virtual ~Assign03RenderEngine() {};
+
+        virtual vector<vk::PushConstantRange> getPushConstantRanges() override {
+            vector<vk::PushConstantRange> ranges;
+
+            vk::PushConstantRange range;
+            range.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+            range.setOffset(0);
+            range.setSize(sizeof(UPushVertex));
+            ranges.push_back(range);
+
+            return ranges;
+        }
+
+        void renderScene(vk::CommandBuffer &commandBuffer, SceneData *sceneData, 
+                         aiNode *node, glm::mat4 parentMat, int level) {
+            // Get transformation for current node and convert                
+            aiMatrix4x4 aiNodeT = node->mTransformation;
+            glm::mat4 nodeT = aiMatToGLM4(aiNodeT); //TODO function defined in include/VKUtility.hpp/cpp
+
+            // Compute current model matrix
+            glm::mat4 modelMat = parentMat * nodeT;
+
+            // Location of current node
+            glm::vec3 pos = glm::vec(modelMat[3]);
+
+            // Temporary model matrix
+            glm::mat4 R = makeRotateZ(sceneData->rotAngle, pos);
+            glm::mat4 tmpModel = R * modelMat;
+
+            // Create instance of Upush and store tmpModel as model matrix
+            UPushVertex tmpModel; //Does this work? TODO
+
+            // Push up UPushVertex data
+            commandBuffer.pushConstants(
+                this->pipelineData.pipelineLayout,
+                vk::ShaderStageFlagBits::eVertex,
+                0,
+                sizeof(UPushVertex),
+                &tmpModel // HERE TODO
+            );
+
+            // Draw Meshes
+            for (int i = 0; i < node->mNumMeshes; i++) {
+                int index = node->mMeshes[i];
+                recordDrawVulkanMesh(commandBuffer, sceneData->allMeshes.at(index));
+            }
+
+            // Children
+            for (int i = 0; i < node->mNumChildren; i++) {
+                renderScene(commandBuffer, sceneData, node->mChildren[i], modelMat, level + 1);
+            }
+
+        }
 
         virtual void recordCommandBuffer( void *userData, vk::CommandBuffer &commandBuffer, 
                                           unsigned int frameIndex) override {
@@ -65,10 +141,13 @@ class Assign03RenderEngine : public VulkanRenderEngine {
             vk::Rect2D scissors[] = {{{0,0}, extent}};
             commandBuffer.setScissor(0, scissors);
             
-            // Draw meshes
+            // Call render scene
+            renderScene(commandBuffer, sceneData, sceneData->scene->mRootNode, glm::mat4(1.0f), 0);
+
+            /* // Draw meshes
             for(auto &mesh : sceneData->allMeshes) {
                 recordDrawVulkanMesh(commandBuffer, mesh);
-            }
+            } */
             
             // Stop render pass
             commandBuffer.endRenderPass();
@@ -104,6 +183,22 @@ class Assign03RenderEngine : public VulkanRenderEngine {
 
 };
 
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        switch (key) {
+            case GLFW_KEY_ESCAPE:
+                glfwSetWindowShouldClose(window, GLFW_TRUE);
+                break;
+            case GLFW_KEY_J:
+                sceneData.rotAngle += 1.0f;
+                break;
+            case GLFW_KEY_K:
+                sceneData.rotAngle -= 1.0f;
+                break;
+        }
+    }
+}
+
 
 int main(int argc, char **argv) {
     cout << "BEGIN FORGING!!!" << endl;
@@ -116,6 +211,9 @@ int main(int argc, char **argv) {
 
     // Create GLFW window
     GLFWwindow* window = createGLFWWindow(windowTitle, windowWidth, windowHeight);
+
+    // Key callback
+    glfwSetKeyCallback(window, keyCallback);
 
     // Setup up Vulkan via vk-bootstrap
     VulkanInitData vkInitData;
