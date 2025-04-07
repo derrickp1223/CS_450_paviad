@@ -70,7 +70,8 @@ class Assign03RenderEngine : public VulkanRenderEngine {
                          aiNode *node, glm::mat4 parentMat, int level) {
             // Get transformation for current node and convert                
             aiMatrix4x4 aiNodeT = node->mTransformation;
-            glm::mat4 nodeT = aiMatToGLM4(aiNodeT); //TODO function defined in include/VKUtility.hpp/cpp
+            glm::mat4 nodeT;
+            aiMatToGLM4(aiNodeT,nodeT); //TODO function defined in include/VKUtility.hpp/cpp
 
             // Compute current model matrix
             glm::mat4 modelMat = parentMat * nodeT;
@@ -83,7 +84,7 @@ class Assign03RenderEngine : public VulkanRenderEngine {
             glm::mat4 tmpModel = R * modelMat;
 
             // Create instance of Upush and store tmpModel as model matrix
-            UPushVertex tmpModel; //Does this work? TODO
+            UPushVertex pushVertex; //Does this work? TODO
 
             // Push up UPushVertex data
             commandBuffer.pushConstants(
@@ -91,7 +92,7 @@ class Assign03RenderEngine : public VulkanRenderEngine {
                 vk::ShaderStageFlagBits::eVertex,
                 0,
                 sizeof(UPushVertex),
-                &tmpModel // HERE TODO
+                &pushVertex // HERE TODO
             );
 
             // Draw Meshes
