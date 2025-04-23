@@ -205,7 +205,7 @@ AttributeDescData VulkanRenderEngine::getAttributeDescData() {
     attribDescData.attribDesc.push_back(vk::VertexInputAttributeDescription(
         1, // location
         0, // binding
-        vk::Format::eR32G32B32Sfloat,  // format
+        vk::Format::eR32G32B32A32Sfloat,  // format
         offsetof(SimpleVertex, color) // offset
     ));
 

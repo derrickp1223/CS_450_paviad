@@ -2,9 +2,23 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-VulkanImage createVulkanImage(  VulkanInitData &vkInitData, int width, int height, 
-                                vk::Format format, vk::ImageUsageFlags usage,
-                                vk::ImageAspectFlags aspectFlags) {
+VulkanImage createVulkanImage(  
+    VulkanInitData &vkInitData, int width, int height, 
+    vk::Format format, vk::ImageUsageFlags usage,
+    vk::ImageAspectFlags aspectFlags) {
+    
+    return createVulkanImage(vkInitData.device,
+        vkInitData.physicalDevice,
+        width, height, format, usage,
+        aspectFlags);
+}
+
+VulkanImage createVulkanImage(  
+    vk::Device &device, 
+    vk::PhysicalDevice &phyDevice,
+    int width, int height, 
+    vk::Format format, vk::ImageUsageFlags usage,
+    vk::ImageAspectFlags aspectFlags) {
 
     // Create struct
     VulkanImage vkImage;
@@ -28,20 +42,20 @@ VulkanImage createVulkanImage(  VulkanInitData &vkInitData, int width, int heigh
         vk::SharingMode::eExclusive         // Only used by one queue family
     );
 
-    auto image = vkInitData.device.createImage(imageInfo);
+    auto image = device.createImage(imageInfo);
 
     // Allocate memory for image
-    vk::MemoryRequirements memRequirements = vkInitData.device.getImageMemoryRequirements(image);
+    vk::MemoryRequirements memRequirements = device.getImageMemoryRequirements(image);
 
     vk::MemoryAllocateInfo allocInfo(memRequirements.size,
                                      findMemoryType(memRequirements.memoryTypeBits, 
                                                     vk::MemoryPropertyFlagBits::eDeviceLocal, 
-                                                    vkInitData.physicalDevice));
+                                                    phyDevice));
 
-    auto memory = vkInitData.device.allocateMemory(allocInfo);
+    auto memory = device.allocateMemory(allocInfo);
 
     // Bind memory to image
-    vkInitData.device.bindImageMemory(image, memory, 0);
+    device.bindImageMemory(image, memory, 0);
 
     // Move into struct (rather than copy)
     vkImage.image = std::move(image);
@@ -60,13 +74,27 @@ VulkanImage createVulkanImage(  VulkanInitData &vkInitData, int width, int heigh
         { aspectFlags, 0, 1, 0, 1 } // Aspect that are visible (also mipmap level and array ranges)
     );
 
-    vkImage.view = vkInitData.device.createImageView(viewInfo);
+    vkImage.view = device.createImageView(viewInfo);
 
     // Return struct
     return vkImage;
 }
 
-VulkanImage createVulkanDepthImage(VulkanInitData &vkInitData, int width, int height) {
+VulkanImage createVulkanDepthImage(
+    VulkanInitData &vkInitData, 
+    int width, int height) {
+
+    return createVulkanDepthImage(
+        vkInitData.device,
+        vkInitData.physicalDevice,
+        width, height);
+}    
+
+VulkanImage createVulkanDepthImage(
+    vk::Device &device,
+    vk::PhysicalDevice &phyDevice,
+    int width, int height) {
+
     // Start with image
     VulkanImage depthImage;
 
@@ -74,7 +102,8 @@ VulkanImage createVulkanDepthImage(VulkanInitData &vkInitData, int width, int he
     vk::Format depthFormat = vk::Format::eD32Sfloat;
 
     // Create Vulkan image accordingly
-    depthImage = createVulkanImage( vkInitData, 
+    depthImage = createVulkanImage( device,
+                                    phyDevice, 
                                     width, height, 
                                     depthFormat, 
                                     vk::ImageUsageFlagBits::eDepthStencilAttachment,
@@ -138,7 +167,11 @@ void transitionVulkanImageLayout(   VulkanInitData &vkInitData,
 }
 
 void cleanupVulkanImage(VulkanInitData &vkInitData, VulkanImage &vkImage) {
-    vkInitData.device.destroyImageView(vkImage.view);
-    vkInitData.device.freeMemory(vkImage.memory);
-    vkInitData.device.destroyImage(vkImage.image);
+    cleanupVulkanImage(vkInitData.device, vkImage);
+}
+
+void cleanupVulkanImage(vk::Device &device, VulkanImage &vkImage) {
+    device.destroyImageView(vkImage.view);
+    device.freeMemory(vkImage.memory);
+    device.destroyImage(vkImage.image);
 }

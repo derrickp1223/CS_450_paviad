@@ -13,8 +13,21 @@ struct VulkanImage {
 VulkanImage createVulkanImage( VulkanInitData &vkInitData, int width, int height, 
                                 vk::Format format, vk::ImageUsageFlags usage,
                                 vk::ImageAspectFlags aspectFlags);
-                                
-VulkanImage createVulkanDepthImage(VulkanInitData &vkInitData, int width, int height);
+VulkanImage createVulkanImage(  
+    vk::Device &device, 
+    vk::PhysicalDevice &phyDevice,
+    int width, int height, 
+    vk::Format format, vk::ImageUsageFlags usage,
+    vk::ImageAspectFlags aspectFlags);
+
+VulkanImage createVulkanDepthImage(
+    VulkanInitData &vkInitData, 
+    int width, int height);
+
+VulkanImage createVulkanDepthImage(
+    vk::Device &device, 
+    vk::PhysicalDevice &phyDevice,
+    int width, int height);
 
 void transitionVulkanImageLayout(   VulkanInitData &vkInitData, 
                                     vk::CommandPool &commandPool,
@@ -23,4 +36,5 @@ void transitionVulkanImageLayout(   VulkanInitData &vkInitData,
                                     vk::ImageLayout newLayout);
 
 void cleanupVulkanImage(VulkanInitData &vkInitData, VulkanImage &vkImage);
+void cleanupVulkanImage(vk::Device &device, VulkanImage &vkImage);
 
