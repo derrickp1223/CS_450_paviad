@@ -19,8 +19,7 @@ struct Vertex {
 };
 
 struct UPushVertex {
-    glm::vec3 pos;
-    glm::vec4 color;
+    alignas(16) glm::mat4 modelMat;
 };
 
 struct SceneData {
@@ -85,6 +84,7 @@ class Assign03RenderEngine : public VulkanRenderEngine {
 
             // Create instance of Upush and store tmpModel as model matrix
             UPushVertex pushVertex; //Does this work? TODO
+            pushVertex.modelMat = tmpModel;
 
             // Push up UPushVertex data
             commandBuffer.pushConstants(
