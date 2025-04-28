@@ -11,6 +11,6 @@ layout(push_constant) uniform UPushVertex {
 } pc;
 
 void main() {
-    gl_Position = vec4(inPosition, 1.0);
+    gl_Position = pc.modelMat*vec4(inPosition, 1.0);
     fragColor = inColor;
 } 
