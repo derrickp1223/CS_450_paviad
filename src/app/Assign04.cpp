@@ -22,6 +22,7 @@ struct Vertex {
 struct UPushVertex {
     glm::vec3 pos;
     glm::vec4 color;
+    alignas(16) glm::mat4 modelMat;
 };
 
 struct UBOVertex {
@@ -256,6 +257,7 @@ class Assign04RenderEngine : public VulkanRenderEngine {
 
             // Create instance of Upush and store tmpModel as model matrix
             UPushVertex pushVertex; 
+            pushVertex.modelMat = tmpModel;
 
             // Push up UPushVertex data
             commandBuffer.pushConstants(
