@@ -1,17 +1,20 @@
 #version 450
+#extension GL_ARB_separate_shader_objects : enable
 
 // UBO for view and projection matrices
 layout(binding = 0) uniform UBOVertex {
-    mat4 view;
-    mat4 projection;
+    mat4 viewMat;
+    mat4 projMat;
 } ubo;
 
-// Push constant for model matrix
+// Push constants for model matrix and vertex data
 layout(push_constant) uniform UPushVertex {
-    mat4 model;
-} push;
+    vec3 pos;
+    vec4 color;
+    mat4 modelMat;
+} pushVertex;
 
-// Vertex input attributes
+// Vertex attributes
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec4 inColor;
 
@@ -19,8 +22,9 @@ layout(location = 1) in vec4 inColor;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
-    // Apply model, view, and projection transformations
-    gl_Position = ubo.projection * ubo.view * push.model * vec4(inPosition, 1.0);
+    // Transform vertex position using model, view, and projection matrices
+    // Apply RIGHT-TO-LEFT multiplication order
+    gl_Position = ubo.projMat * ubo.viewMat * pushVertex.modelMat * vec4(inPosition, 1.0);
     
     // Pass color to fragment shader
     fragColor = inColor;
