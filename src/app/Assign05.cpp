@@ -17,17 +17,31 @@
 struct Vertex {
     glm::vec3 pos;
     glm::vec4 color;
+    glm::vec3 normal;
 };
 
 struct UPushVertex {
     glm::vec3 pos;
     glm::vec4 color;
     alignas(16) glm::mat4 modelMat;
+    alignas(16) glm::mat4 normMat;
 };
 
 struct UBOVertex {
     alignas(16) glm::mat4 viewMat;
     alignas(16) glm::mat4 projMat;
+};
+
+struct PointLight {
+    alignas(16) glm::vec4 pos;
+    alignas(16) glm::vec4 vpos;
+    alignas(16) glm::vec4 color;
+};
+
+struct UBOFragment {
+    PointLight light;
+    alignas(4) float metallic;
+    alignas(4) float roughness;
 };
 
 struct SceneData {
@@ -40,6 +54,16 @@ struct SceneData {
     glm::vec2 mousePos;
     glm::mat4 viewMat = glm::mat4(1.0f);
     glm::mat4 projMat = glm::mat4(1.0f);
+    
+    // New fields for Assign05
+    PointLight light = {
+        glm::vec4(0.5f, 0.5f, 0.5f, 1.0f), // World position
+        glm::vec4(0.0f), // View position (will be updated)
+        glm::vec4(1.0f, 1.0f, 1.0f, 1.0f) // White color
+    };
+    
+    float metallic = 0.0f;
+    float roughness = 0.1f;
 };
 
 SceneData sceneData;
@@ -114,20 +138,23 @@ static void mouse_position_callback(GLFWwindow* window, double xpos, double ypos
     sceneData.mousePos = glm::vec2(xpos, ypos);
 }
 
-class Assign04RenderEngine : public VulkanRenderEngine {
+class Assign05RenderEngine : public VulkanRenderEngine {
     protected:
     UBOVertex hostUBOVert;
     UBOData deviceUBOVert;
+    UBOFragment hostUBOFrag;
+    UBOData deviceUBOFrag;
     vk::DescriptorPool descriptorPool;
     vector<vk::DescriptorSet> descriptorSets;
 
     public:
-        Assign04RenderEngine(VulkanInitData & vkInitData) :
+        Assign05RenderEngine(VulkanInitData & vkInitData) :
         VulkanRenderEngine(vkInitData) {};
 
         virtual bool initialize(VulkanInitRenderParams *params) override {
             if(!VulkanRenderEngine::initialize(params)) { return false; }
             
+            // Create UBO for vertex shader
             deviceUBOVert = createVulkanUniformBufferData(
                 vkInitData.device, 
                 vkInitData.physicalDevice,
@@ -135,11 +162,19 @@ class Assign04RenderEngine : public VulkanRenderEngine {
                 MAX_FRAMES_IN_FLIGHT
             );
             
+            // Create UBO for fragment shader
+            deviceUBOFrag = createVulkanUniformBufferData(
+                vkInitData.device, 
+                vkInitData.physicalDevice,
+                sizeof(UBOFragment),
+                MAX_FRAMES_IN_FLIGHT
+            );
+            
             // Create descriptor pool
             vector<vk::DescriptorPoolSize> poolSizes;
             poolSizes.push_back(vk::DescriptorPoolSize(
                 vk::DescriptorType::eUniformBuffer,
-                MAX_FRAMES_IN_FLIGHT
+                2 * MAX_FRAMES_IN_FLIGHT  // Changed to include both vertex and fragment UBOs
             ));
             
             vk::DescriptorPoolCreateInfo poolCreateInfo;
@@ -165,6 +200,7 @@ class Assign04RenderEngine : public VulkanRenderEngine {
             for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
                 vector<vk::WriteDescriptorSet> writes;
                 
+                // Vertex shader UBO descriptor
                 vk::DescriptorBufferInfo bufferVertInfo;
                 bufferVertInfo.setBuffer(deviceUBOVert.bufferData[i].buffer);
                 bufferVertInfo.setOffset(0);
@@ -180,14 +216,31 @@ class Assign04RenderEngine : public VulkanRenderEngine {
                 
                 writes.push_back(descVertWrites);
                 
+                // Fragment shader UBO descriptor
+                vk::DescriptorBufferInfo bufferFragInfo;
+                bufferFragInfo.setBuffer(deviceUBOFrag.bufferData[i].buffer);
+                bufferFragInfo.setOffset(0);
+                bufferFragInfo.setRange(sizeof(UBOFragment));
+                
+                vk::WriteDescriptorSet descFragWrites;
+                descFragWrites.setDstSet(descriptorSets[i]);
+                descFragWrites.setDstBinding(1);
+                descFragWrites.setDstArrayElement(0);
+                descFragWrites.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+                descFragWrites.setDescriptorCount(1);
+                descFragWrites.setBufferInfo(bufferFragInfo);
+                
+                writes.push_back(descFragWrites);
+                
                 vkInitData.device.updateDescriptorSets(writes, {});
             }
             return true;
-            };
+        };
 
-        virtual ~Assign04RenderEngine() {
+        virtual ~Assign05RenderEngine() {
             vkInitData.device.destroyDescriptorPool(descriptorPool);
             cleanupVulkanUniformBufferData(vkInitData.device, deviceUBOVert);
+            cleanupVulkanUniformBufferData(vkInitData.device, deviceUBOFrag);
         };
 
         virtual vector<vk::PushConstantRange> getPushConstantRanges() override {
@@ -205,14 +258,24 @@ class Assign04RenderEngine : public VulkanRenderEngine {
         virtual vector<vk::DescriptorSetLayout> getDescriptorSetLayouts() override {
             vector<vk::DescriptorSetLayoutBinding> allBindings;
             
-            vk::DescriptorSetLayoutBinding uboBinding;
-            uboBinding.binding = 0;
-            uboBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
-            uboBinding.descriptorCount = 1;
-            uboBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
-            uboBinding.pImmutableSamplers = nullptr;
+            // Vertex shader UBO binding
+            vk::DescriptorSetLayoutBinding uboVertBinding;
+            uboVertBinding.binding = 0;
+            uboVertBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
+            uboVertBinding.descriptorCount = 1;
+            uboVertBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+            uboVertBinding.pImmutableSamplers = nullptr;
             
-            allBindings.push_back(uboBinding);
+            // Fragment shader UBO binding
+            vk::DescriptorSetLayoutBinding uboFragBinding;
+            uboFragBinding.binding = 1;
+            uboFragBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
+            uboFragBinding.descriptorCount = 1;
+            uboFragBinding.stageFlags = vk::ShaderStageFlagBits::eFragment;
+            uboFragBinding.pImmutableSamplers = nullptr;
+            
+            allBindings.push_back(uboVertBinding);
+            allBindings.push_back(uboFragBinding);
             
             vk::DescriptorSetLayout layout = vkInitData.device.createDescriptorSetLayout(
                 vk::DescriptorSetLayoutCreateInfo({}, allBindings)
@@ -221,16 +284,59 @@ class Assign04RenderEngine : public VulkanRenderEngine {
             return vector<vk::DescriptorSetLayout>{layout};
         }
         
+        virtual AttributeDescData getAttributeDescData() override {
+            AttributeDescData attribDescData;
+            
+            // Set binding description
+            attribDescData.bindDesc = vk::VertexInputBindingDescription(
+                0, sizeof(Vertex), vk::VertexInputRate::eVertex
+            );
+            
+            // Clear and add attribute descriptions
+            attribDescData.attribDesc.clear();
+            
+            // Position attribute
+            attribDescData.attribDesc.push_back(
+                vk::VertexInputAttributeDescription(
+                    0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos)
+                )
+            );
+            
+            // Color attribute
+            attribDescData.attribDesc.push_back(
+                vk::VertexInputAttributeDescription(
+                    1, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Vertex, color)
+                )
+            );
+            
+            // Normal attribute
+            attribDescData.attribDesc.push_back(
+                vk::VertexInputAttributeDescription(
+                    2, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal)
+                )
+            );
+            
+            return attribDescData;
+        }
+        
         virtual void updateUniformBuffers(SceneData *sceneData, vk::CommandBuffer &commandBuffer) {
-            // Copy view and projection matrices from scene data
+            // Update vertex UBO
             hostUBOVert.viewMat = sceneData->viewMat;
             hostUBOVert.projMat = sceneData->projMat;
             
             // Invert Y for projection matrix
             hostUBOVert.projMat[1][1] *= -1;
             
-            // Copy UBO host data to device
+            // Copy UBO vertex host data to device
             memcpy(deviceUBOVert.mapped[this->currentImage], &hostUBOVert, sizeof(hostUBOVert));
+            
+            // Update fragment UBO
+            hostUBOFrag.light = sceneData->light;
+            hostUBOFrag.metallic = sceneData->metallic;
+            hostUBOFrag.roughness = sceneData->roughness;
+            
+            // Copy UBO fragment host data to device
+            memcpy(deviceUBOFrag.mapped[this->currentImage], &hostUBOFrag, sizeof(hostUBOFrag));
             
             // Bind descriptor sets
             commandBuffer.bindDescriptorSets(
@@ -247,29 +353,33 @@ class Assign04RenderEngine : public VulkanRenderEngine {
             // Get transformation for current node and convert                
             aiMatrix4x4 aiNodeT = node->mTransformation;
             glm::mat4 nodeT;
-            aiMatToGLM4(aiNodeT,nodeT); //TODO function defined in include/VKUtility.hpp/cpp
+            aiMatToGLM4(aiNodeT, nodeT);
 
             // Compute current model matrix
             glm::mat4 modelMat = parentMat * nodeT;
 
             // Location of current node
-            glm::vec3 pos = glm::vec(modelMat[3]);
+            glm::vec3 pos = glm::vec3(modelMat[3]);
 
             // Temporary model matrix
             glm::mat4 R = makeRotateZ(sceneData->rotAngle, pos);
             glm::mat4 tmpModel = R * modelMat;
+            
+            // Calculate normal matrix
+            glm::mat4 normalMat = glm::transpose(glm::inverse(glm::mat4(sceneData->viewMat * tmpModel)));
 
-            // Create instance of Upush and store tmpModel as model matrix
+            // Create instance of UPushVertex and store matrices
             UPushVertex pushVertex; 
             pushVertex.modelMat = tmpModel;
+            pushVertex.normMat = normalMat;
 
-            // Push up UPushVertex data
+            // Push UPushVertex data
             commandBuffer.pushConstants(
                 this->pipelineData.pipelineLayout,
                 vk::ShaderStageFlagBits::eVertex,
                 0,
                 sizeof(UPushVertex),
-                &pushVertex // HERE TODO
+                &pushVertex
             );
 
             // Draw Meshes
@@ -282,54 +392,53 @@ class Assign04RenderEngine : public VulkanRenderEngine {
             for (int i = 0; i < node->mNumChildren; i++) {
                 renderScene(commandBuffer, sceneData, node->mChildren[i], modelMat, level + 1);
             }
-
         }
 
         virtual void recordCommandBuffer(void *userData, vk::CommandBuffer &commandBuffer, 
             unsigned int frameIndex) override {
-        SceneData *sceneData = static_cast<SceneData*>(userData);
+            SceneData *sceneData = static_cast<SceneData*>(userData);
 
-        // Begin commands
-        commandBuffer.begin(vk::CommandBufferBeginInfo());
+            // Begin commands
+            commandBuffer.begin(vk::CommandBufferBeginInfo());
 
-        // Get the extents of the buffers (since we'll use it a few times)
-        vk::Extent2D extent = vkInitData.swapchain.extent;
+            // Get the extents of the buffers (since we'll use it a few times)
+            vk::Extent2D extent = vkInitData.swapchain.extent;
 
-        // Begin render pass
-        array<vk::ClearValue, 2> clearValues {};
-        clearValues[0].color = vk::ClearColorValue(1.0f, 1.0f, 0.7f, 1.0f);
-        clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0.0f);
+            // Begin render pass
+            array<vk::ClearValue, 2> clearValues {};
+            clearValues[0].color = vk::ClearColorValue(1.0f, 1.0f, 0.7f, 1.0f);
+            clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0.0f);
 
-        commandBuffer.beginRenderPass(vk::RenderPassBeginInfo(
-        this->renderPass, 
-        this->framebuffers[frameIndex], 
-        { {0,0}, extent },
-        clearValues),
-        vk::SubpassContents::eInline);
+            commandBuffer.beginRenderPass(vk::RenderPassBeginInfo(
+                this->renderPass, 
+                this->framebuffers[frameIndex], 
+                { {0,0}, extent },
+                clearValues),
+                vk::SubpassContents::eInline);
 
-        // Bind pipeline
-        commandBuffer.bindPipeline(
-        vk::PipelineBindPoint::eGraphics, 
-        this->pipelineData.graphicsPipeline);
+            // Bind pipeline
+            commandBuffer.bindPipeline(
+                vk::PipelineBindPoint::eGraphics, 
+                this->pipelineData.graphicsPipeline);
 
-        // Set up viewport and scissors
-        vk::Viewport viewports[] = {{0, 0, (float)extent.width, (float)extent.height, 0.0f, 1.0f}};
-        commandBuffer.setViewport(0, viewports);
+            // Set up viewport and scissors
+            vk::Viewport viewports[] = {{0, 0, (float)extent.width, (float)extent.height, 0.0f, 1.0f}};
+            commandBuffer.setViewport(0, viewports);
 
-        vk::Rect2D scissors[] = {{{0,0}, extent}};
-        commandBuffer.setScissor(0, scissors);
+            vk::Rect2D scissors[] = {{{0,0}, extent}};
+            commandBuffer.setScissor(0, scissors);
 
-        // Update uniform buffers before calling renderScene
-        updateUniformBuffers(sceneData, commandBuffer);
+            // Update uniform buffers before calling renderScene
+            updateUniformBuffers(sceneData, commandBuffer);
 
-        // Call render scene
-        renderScene(commandBuffer, sceneData, sceneData->scene->mRootNode, glm::mat4(1.0f), 0);
+            // Call render scene
+            renderScene(commandBuffer, sceneData, sceneData->scene->mRootNode, glm::mat4(1.0f), 0);
 
-        // Stop render pass
-        commandBuffer.endRenderPass();
+            // Stop render pass
+            commandBuffer.endRenderPass();
 
-        // End command buffer
-        commandBuffer.end();
+            // End command buffer
+            commandBuffer.end();
         }
 
         void extractMeshData(aiMesh *mesh, Mesh<Vertex> &m) {
@@ -339,10 +448,20 @@ class Assign04RenderEngine : public VulkanRenderEngine {
             for(int i = 0; i < mesh->mNumVertices; ++i){
                 Vertex vertex;
 
+                // Position
                 aiVector3D aiPos = mesh->mVertices[i];
                 vertex.pos = glm::vec3(aiPos.x, aiPos.y, aiPos.z);
 
-                vertex.color = glm::vec4( 0.5f, 0.8f, 0.3f, 1.0f);
+                // Set color to yellow
+                vertex.color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+                
+                // Set normal
+                if (mesh->HasNormals()) {
+                    aiVector3D aiNormal = mesh->mNormals[i];
+                    vertex.normal = glm::vec3(aiNormal.x, aiNormal.y, aiNormal.z);
+                } else {
+                    vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);  // default up vector
+                }
 
                 m.vertices.push_back(vertex);
             }
@@ -355,8 +474,6 @@ class Assign04RenderEngine : public VulkanRenderEngine {
                 }
             }
         }
-
-
 };
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -411,6 +528,35 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 sceneData.lookAt -= localX * speed;
                 break;
             }
+            // New key controls for Assign05
+            case GLFW_KEY_1:
+                sceneData.light.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); // White
+                break;
+            case GLFW_KEY_2:
+                sceneData.light.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
+                break;
+            case GLFW_KEY_3:
+                sceneData.light.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f); // Green
+                break;
+            case GLFW_KEY_4:
+                sceneData.light.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f); // Blue
+                break;
+            case GLFW_KEY_V:
+                sceneData.metallic -= 0.1f;
+                if (sceneData.metallic < 0.0f) sceneData.metallic = 0.0f;
+                break;
+            case GLFW_KEY_B:
+                sceneData.metallic += 0.1f;
+                if (sceneData.metallic > 1.0f) sceneData.metallic = 1.0f;
+                break;
+            case GLFW_KEY_N:
+                sceneData.roughness -= 0.1f;
+                if (sceneData.roughness < 0.1f) sceneData.roughness = 0.1f;
+                break;
+            case GLFW_KEY_M:
+                sceneData.roughness += 0.1f;
+                if (sceneData.roughness > 0.7f) sceneData.roughness = 0.7f;
+                break;
         }
     }
 }
@@ -420,8 +566,8 @@ int main(int argc, char **argv) {
     cout << "BEGIN FORGING!!!" << endl;
     
     // Set name
-    string appName = "Assign04";
-    string windowTitle = "Assign04: paviad";
+    string appName = "Assign05";
+    string windowTitle = "Assign05: paviad";
     int windowWidth = 800;
     int windowHeight = 600;
 
@@ -446,7 +592,7 @@ int main(int argc, char **argv) {
     VulkanInitData vkInitData;
     initVulkanBootstrap(appName, window, vkInitData);
 
-    // Assign 02
+    // Load model
     string modelPath = "sampleModels/sphere.obj";
 
     if (argc >= 2) 
@@ -471,7 +617,6 @@ int main(int argc, char **argv) {
         cout << "Scene root node is null " << endl;
     }
 
-
     // Setup basic forward rendering process
     string vertSPVFilename = "build/compiledshaders/" + appName + "/shader.vert.spv";                                                    
     string fragSPVFilename = "build/compiledshaders/" + appName + "/shader.frag.spv";
@@ -480,56 +625,18 @@ int main(int argc, char **argv) {
     VulkanInitRenderParams params = {
         vertSPVFilename, fragSPVFilename
     };    
-    VulkanRenderEngine *renderEngine = new Assign04RenderEngine(vkInitData);
+    VulkanRenderEngine *renderEngine = new Assign05RenderEngine(vkInitData);
     renderEngine->initialize(&params);
 
-    /*
-    Before your drawing loop:
-        ▪ Make sure your VulkanRenderEngine is an instance of Assign02RenderEngine:
-        • VulkanRenderEngine *renderEngine
-        = new Assign02RenderEngine(vkInitData);
-        ▪ For each mesh in the scene (mMeshes with mNumMeshes):
-        • Create a Mesh<Vertex> object inside the loop
-        • Call extractMeshData to get a Mesh from each
-        sceneData.scene->mMeshes[i]
-        • Call createVulkanMesh to get a VulkanMesh from that Mesh
-        • Add the VulkanMesh to your vector of VulkanMesh's in your sceneData
-        o In your drawing loop:
-        ▪ Pass in the address of sceneData to drawFrame():
-        • renderEngine->drawFrame(&sceneData);
-        o After your drawing loop:
-        ▪ Comment out previous cleanupVulkanMesh() call
-        ▪ Loop through all of your VulkanMesh objects and call cleanupVulkanMesh()
-        ▪ Clear out your list of VulkanMesh objects in your sceneData
-    */
-   for (int i = 0; i < sceneData.scene->mNumMeshes; ++i) {
-    Mesh<Vertex> mesh;
-    static_cast<Assign04RenderEngine*>(renderEngine)->
-        extractMeshData(sceneData.scene->mMeshes[i], mesh);
-    VulkanMesh vulkanMesh = 
-        createVulkanMesh(vkInitData, renderEngine->getCommandPool(), mesh);
+    // Load all meshes from the scene
+    for (int i = 0; i < sceneData.scene->mNumMeshes; ++i) {
+        Mesh<Vertex> mesh;
+        static_cast<Assign05RenderEngine*>(renderEngine)->
+            extractMeshData(sceneData.scene->mMeshes[i], mesh);
+        VulkanMesh vulkanMesh = 
+            createVulkanMesh(vkInitData, renderEngine->getCommandPool(), mesh);
         sceneData.allMeshes.push_back(vulkanMesh);
-}
-
-
-    
-    // Create very simple quad on host
-    /*Mesh<SimpleVertex> hostMesh = {
-        {
-            {{-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-            {{0.5f, -0.5f, 0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-            {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f}},
-            {{-0.5f, 0.5f, 0.5f}, {1.0f, 1.0f, 1.0f, 1.0f}}
-        },
-        { 0, 2, 1, 2, 0, 3 }
-    };
-    
-    // Create Vulkan mesh
-    VulkanMesh mesh = createVulkanMesh(vkInitData, renderEngine->getCommandPool(), hostMesh); 
-    vector<VulkanMesh> allMeshes {
-        { mesh }
-    };
-    */
+    }
 
     float timeElapsed = 1.0f;
     int framesRendered = 0;
@@ -564,6 +671,9 @@ int main(int argc, char **argv) {
             50.0f
         );
         
+        // Update light view position based on current view matrix
+        sceneData.light.vpos = sceneData.viewMat * sceneData.light.pos;
+        
         // Draw frame
         renderEngine->drawFrame(&sceneData);
 
@@ -588,8 +698,7 @@ int main(int argc, char **argv) {
     // Make sure all queues on GPU are done
     vkInitData.device.waitIdle();
     
-    // Cleanup  
-    // cleanupVulkanMesh(vkInitData, mesh);
+    // Cleanup meshes
     for (auto &mesh : sceneData.allMeshes) {
         cleanupVulkanMesh(vkInitData, mesh);
     }
