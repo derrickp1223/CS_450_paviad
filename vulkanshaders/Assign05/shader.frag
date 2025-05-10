@@ -21,8 +21,8 @@ struct PointLight {
 // UBO for fragment shader data
 layout(set = 0, binding = 1) uniform UBOFragment {
     PointLight light;
-    float roughness;
     float metallic;
+    float roughness;    
 } ubo;
 
 // Calculate Fresnel reflectance at angle zero
